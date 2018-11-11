@@ -5,6 +5,7 @@ import sys
 from datetime import datetime, timedelta
 
 import matplotlib
+matplotlib.use('WXAgg')
 import matplotlib.dates as mdates
 import matplotlib.font_manager as font_m
 import numpy
@@ -19,8 +20,6 @@ from scipy import signal as sc
 from scipy import stats
 
 matplotlib.rcParams.update({'font.size': 25}) #36
-matplotlib.use('WXAgg')
-
 
 class SepViewer(wx.Panel):
     def __init__(self, parent):
@@ -214,10 +213,10 @@ class SepViewer(wx.Panel):
         if True:
             # 2160 15120
             # 5400 6120
-            # beg = 2160
-            # end = 15120
-            beg = 0
-            end = 17280 - 1
+            beg = 6480
+            end = 7920
+            # beg = 0
+            # end = 17280 - 1
             rs = rs[beg:end]
             sstd = sstd[beg:end]
             cu = cu[beg:end]
@@ -226,6 +225,7 @@ class SepViewer(wx.Panel):
             rx = rx[beg:end]
             endate = rsdate + timedelta(seconds=end*5)
             rsdate = rsdate + timedelta(seconds=beg*5)
+            
             
 
         self.axes1 = self.figure.add_subplot(313)
@@ -257,6 +257,7 @@ class SepViewer(wx.Panel):
 
         font = font_m.FontProperties(size=20)
         self.axes2.legend(lds,lbls, prop=font)
+        self.axes2.set_xlim(rsdate, endate)
         self.fmataxes(self.axes1)
         self.fmataxes(self.axes2)      
 
@@ -641,7 +642,7 @@ class SidViewer(wx.Panel):
         #['06:22','07:34','09:10','12:02','15:56'],
         ["06:17","07:29","08:57","11:53","15:55"], 
 
-        ["04:59","06:19","09:21","09:45","10:10","12:00","14:20"],
+        ["04:59","06:19","09:21","09:50","10:10","12:00","14:20"],
         ["05:31","06:24","06:35","07:08","07:44","09:35","10:50","11:21","12:13","12:29","15:24"],
         ["06:23","06:51","07:17","10:50","14:49","16:20"],
         ["09:02","14:19","15:23","15:35"],
@@ -661,7 +662,7 @@ class SidViewer(wx.Panel):
 
         ["06:22","07:34","09:10","12:02","16:01"],
 
-        ["05:02","06:28","09:30","09:59","10:21","12:14","14:36"],
+        ["05:02","06:28","09:30","09:55","10:21","12:14","14:36"],
         ["05:36","06:27","06:41","07:18","07:51","09:41","11:00","11:27","12:23","12:33","15:32"],
         ["06:29","06:56","07:27","11:04","14:53","16:32"],
         ["09:20","14:23","15:26","15:55"],
@@ -739,8 +740,8 @@ class SidViewer(wx.Panel):
 
     def checkreg(self, beg, end):
         if beg != [None]:
-            ibeg = [self.timetoIndex(x) for x in beg]
-            iend = [self.timetoIndex(x) for x in end]
+            ibeg = [self.timetoIndex(x) - (self.timetoIndex(x) % self.segment) for x in beg]
+            iend = [self.timetoIndex(x) + (self.segment - (self.timetoIndex(x) % self.segment)) for x in end]
             return lambda x : [(x > b) and (x < e) for b,e in zip(ibeg, iend)]
         else:
             return lambda x : [False]
@@ -839,14 +840,16 @@ class SidViewer(wx.Panel):
                 
                 rise = self.timetoIndex(self.risestamps[day])
                 set =  self.timetoIndex(self.setstamps[day])
+
             else:
                 isflare = lambda x : [False]
                 flareclass = [None]
                 rise = 0 
                 set = 17280
 
-            self.region = [self.rsdate + timedelta(minutes=x/12) for x in range(rise,set,self.segment)]
-            # xregion = [x for x in range(rise,set,self.segment)]
+            xrise = rise + (self.segment - (rise%self.segment))
+            self.region = [self.rsdate + timedelta(minutes=x/12) for x in range(xrise,set,self.segment)]
+            xregion = [x for x in range(rise,set,self.segment)]
 
 
             dlg = wx.TextEntryDialog(self, 'W in seconds, K_distance:', 'Viewer')
@@ -939,17 +942,19 @@ class SidViewer(wx.Panel):
 
                             #j = i + ns - 1
                             j = i
+                            hit = False
 
                             if (sid >= c or sid <= d) and (j >= rise and j <= set): # and dsum >= std:
                                 dcount += 1 
                                 if dcount > thresh:
                                     
-                                    #print('{0}: {1:.2f}, {2:.2f}'.format(j,sid,std))
+                                    # print('{0}: {1:.2f}, {2:.2f}'.format(j,sid,std))
                                     
                                     rx.append(sid)                     
                                     old = i 
                                     hit = True                                
-                                    shit.append(True)                                    
+                                    shit.append(True) 
+                                                                       
                                 else:
                                     rx.append(numpy.nan)            
                                     shit.append(False)      
@@ -958,14 +963,16 @@ class SidViewer(wx.Panel):
                                 rx.append(numpy.nan)
                                 shit.append(False)
 
-                                #if i - old == 1 and i > 1:
-                                    #print('{0} \n'.format(dcount-thresh))
+                                # if i - old == 1 and i > 1:
+                                #     print('{0} \n'.format(dcount-thresh))
 
                                 dcount = 0
 
                             shit = shit[-self.segment:]
+                            xhit.append([hit,j])
+                            xhit = xhit[-self.segment:]
 
-                            if (j >= rise  and j <= set) and (j+1) % self.segment == 0:
+                            if (j >= rise + self.segment and j <= set) and (j+1) % self.segment == 0:
                                 clist = isflare(j)
                                 if any(clist): # flare
                                     fClass = self.getclass(clist,flareclass)
@@ -1006,7 +1013,7 @@ class SidViewer(wx.Panel):
                                             # FP
                                             CON.append('r')
                                             tally[2] += 1
-                                            #print('<<FP {0}>>'.format(j))
+                                            # print('<<FP {0}>>'.format(j))
                                     else:
                                         # TN
                                         CON.append('g')
