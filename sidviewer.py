@@ -885,6 +885,7 @@ class SidViewer(wx.Panel):
                         param.append([i,j,k])
             verbose = False
             infile = open("result.csv","w")
+            path = self.dpath1
 
 
         for fin in path:
