@@ -51,7 +51,7 @@ class SepViewer(wx.Panel):
 
         self.axes1 = self.figure.add_subplot(211)
         self.axes1.plot(xsid1, tsid1, color='green', linewidth=2)
-        self.anotateAxes(self.axes1,tsid1,rsdate,shade,flare)
+        #self.anotateAxes(self.axes1,tsid1,rsdate,shade,flare)
         self.fmataxes(self.axes1)
 
     def draw2(self, controller, sid1, sid2):
@@ -240,6 +240,8 @@ class SepViewer(wx.Panel):
 
         # # standard dev 
         self.axes1.plot(rs[1:], sstd[1:], label='Moving $\sigma$')
+        self.axes3 = self.axes1.twinx()
+        self.axes3.plot(rs[1:], su[1:], color='gray', label='Moving Median')
         self.axes1.legend()
         #self.axes1.set_ylim(0,2e7)
 
@@ -545,17 +547,28 @@ class SidViewer(wx.Panel):
         """ Simple Plot """
         if self.sid1:
             
-            sid1 = self.sid1
+            alpha = 0.8
+            #sid1 = self.sid1
             #sid1 = self.filter(list(self.sid1))
-            sid2 = (self.sid1[0], numpy.asarray(self.lowpassfilt2(list(self.sid1[1]))))
 
-            app = wx.App(False)
-            fr = wx.Frame(None, title='Simple Plot', size=(800, 600))
-            panel = SepViewer(fr)            
+            dlg = wx.TextEntryDialog(self, 'alpha:', 'Viewer')
+            dlg.SetValue(str(alpha))
 
-            panel.draw(sid1, self.rsdate, self.settwishade(), self.setflaremarks())
-            fr.Show()
-            app.MainLoop()
+            if dlg.ShowModal() == wx.ID_OK:
+                diagin = dlg.GetValue()
+                alpha = float(diagin)
+
+                sid2 = (self.sid1[0], numpy.asarray(self.lowpassfilt2(list(self.sid1[1]),alpha)))
+
+                app = wx.App(False)
+                fr = wx.Frame(None, title='Simple Plot', size=(800, 600))
+                panel = SepViewer(fr)            
+
+                panel.draw(sid2, self.rsdate, self.settwishade(), self.setflaremarks())
+                fr.Show()
+                app.MainLoop()
+
+            dlg.Destroy()
 
 
     def pick4(self, event):
@@ -764,7 +777,11 @@ class SidViewer(wx.Panel):
         return TPR
 
     def FPR(self,FP,TN):
-        return float(FP)/(FP+TN)
+        try:
+            FPR = float(FP)/(FP+TN)
+        except ZeroDivisionError:
+            FPR = 0
+        return FPR
 
     def tallyclass(self, cond, fClass, tpfn, tally):
         # [[C],[M],[X],FP,TN]
@@ -875,7 +892,7 @@ class SidViewer(wx.Panel):
 
             aNs = range(60,361,12)                      # 5 min to 30 min 1 min increment
             aK = [float(x)/10 for x in range(30,41,5)]  # 3.0 to 4.0 0.1 increment
-            aAlp = [float(x)/10 for x in range(11)]
+            aAlp = [float(x)/10 for x in range(1,11)]
             param = []
             thresh = 1
 
@@ -885,7 +902,7 @@ class SidViewer(wx.Panel):
                         param.append([i,j,k])
             verbose = False
             infile = open("result.csv","w")
-            path = self.dpath1
+            path = self.dpath1[6:]
 
 
         for fin in path:
@@ -912,7 +929,7 @@ class SidViewer(wx.Panel):
             rs = []
             rs = self.generate_timestamp(self.rsdate, 5)    # timestamp           
             tsid = list(self.sid1)[1]
-
+            #tsid = self.lowpassfilt2(tsid,0.025)
 
             for ns,k,alpha in param:
                 sstd = []   #standard dev
@@ -1003,7 +1020,7 @@ class SidViewer(wx.Panel):
                                 fClass = self.getclass(clist,flareclass)
                                 if any(shit): 
                                     # Treat the FN detection at the last region as TN
-                                    if CON[-1] == 'y':
+                                    if len(CON) > 0 and CON[-1] == 'y':
                                         CON[-1] = 'g'
                                         tally[3] += 1
                                         tally[1] -= 1
