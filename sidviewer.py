@@ -19,6 +19,7 @@ from matplotlib.mlab import movavg
 from scipy import signal as sc
 from scipy import stats
 
+
 matplotlib.rcParams.update({'font.size': 25}) #36
 
 class SepViewer(wx.Panel):
@@ -213,10 +214,10 @@ class SepViewer(wx.Panel):
         if True:
             # 2160 15120
             # 5400 6120
-            beg = 6480
-            end = 7920
-            # beg = 0
-            # end = 17280 - 1
+            # beg = 6480
+            # end = 7920
+            beg = 0
+            end = 17280 - 1
             rs = rs[beg:end]
             sstd = sstd[beg:end]
             cu = cu[beg:end]
@@ -828,29 +829,8 @@ class SidViewer(wx.Panel):
 
     def pick7(self, event):
         """ Analysis using PCL """
-        if self.sid1:
-            # apply ewma
-            # apply ewma for online capture
 
-            day = self.rsdate.day - 1
-
-            if day <= 15:
-                isflare = self.checkreg(self.begflare[day], self.endflare[day])
-                flareclass = self.anotstamps[day]
-                
-                rise = self.timetoIndex(self.risestamps[day])
-                set =  self.timetoIndex(self.setstamps[day])
-
-            else:
-                isflare = lambda x : [False]
-                flareclass = [None]
-                rise = 0 
-                set = 17280
-
-            xrise = rise + (self.segment - (rise%self.segment))
-            self.region = [self.rsdate + timedelta(minutes=x/12) for x in range(xrise,set,self.segment)]
-            xregion = [x for x in range(rise,set,self.segment)]
-
+        if self.sid1: #analyse using discrete values
 
             dlg = wx.TextEntryDialog(self, 'W in seconds, K_distance:', 'Viewer')
             dlg.SetValue(self.temp)
@@ -875,198 +855,236 @@ class SidViewer(wx.Panel):
                     aNs = range(60,361,12)                      # 5 min to 30 min 1 min increment
                     aK = [float(x)/10 for x in range(30,41,5)]  # 3.0 to 4.0 0.1 increment
                     param = []
+                    thresh = 1
 
                     for i in aNs:
                         for j in aK:
                             param.append([i,j])
                     verbose = False
 
-                rs = []
-                rs = self.generate_timestamp(self.rsdate, 5)    # timestamp           
-                tsid = list(self.sid1)[1]
-                #tsid =  self.filter(list(self.sid1),ns)[1]
-                #tsid = numpy.asarray(self.lowpassfilt2(tsid))
-                #tsid = self.filter_buffer(tsid,5)                
-                #tsid = numpy.asarray(self.lowpassfilt2(tsid))
+            path = [self.dpath1[self.combo1.GetSelection()]]
+            dlg.Destroy()
+        
+        else: # batch 
 
-                for ns,k in param:
-                    sstd = []   #standard dev
-                    su = []     #rolling mean      
-                    cu = []     #control upper
-                    cl = []     #control lower
-                    rx = []     #intersection
+            aNs = range(60,361,12)                      # 5 min to 30 min 1 min increment
+            aK = [float(x)/10 for x in range(30,41,5)]  # 3.0 to 4.0 0.1 increment
+            param = []
+            thresh = 1
 
-                    TP = TN = FP = FN = 0
+            for i in aNs:
+                for j in aK:
+                    param.append([i,j])
+            verbose = False
 
-                    CON = []    # saves values
-                    
-                    xhit = []   # debug
-                    shit = []   # saves hit points of size segment
-                    tally = [0] * 4  # tallies TP,FP,FN,TN
+            path = self.dpath1
 
-                    cond = [[0,0,'C'],[0,0,'M'],[0,0,'X']]
 
-                    old = 0
-                    dcount = 0    
+        for fin in path:
+            self.loadsid1p(fin)
 
-                    for i in range(17280):
+            day = self.rsdate.day - 1
 
-                        if i < ns:
-                            sstd.append(0)
-                            su.append(numpy.nan)
-                            cl.append(numpy.nan)
-                            cu.append(numpy.nan)
-                            rx.append(numpy.nan)                           
-                        else:
-                            # array at index
-                            sid = tsid[i]
-                            # signal array within window
-                            s = tsid[(i-ns):(i)]
-                            s = self.lowpassfilt2(s)
+            if day <= 15:
+                isflare = self.checkreg(self.begflare[day], self.endflare[day])
+                flareclass = self.anotstamps[day]
+                
+                rise = self.timetoIndex(self.risestamps[day])
+                set =  self.timetoIndex(self.setstamps[day])
 
-                            # standard deviation
-                            std = numpy.std(s)                    
-                            sstd.append(std)
-                            # sma
-                            u = numpy.median(s)
-                            su.append(u)
-                            # limits
-                            c = u + k*std #+ y*u
-                            d = u - k*std #- y*u
-                            if d < 0.0:
-                                d = 0
-                            cu.append(c)
-                            cl.append(d)
-                                                   
-                            #thresh = 1
+            else:
+                isflare = lambda x : [False]
+                flareclass = [None]
+                rise = 0 
+                set = 17280
 
-                            #j = i + ns - 1
-                            j = i
-                            hit = False
+            xrise = rise + (self.segment - (rise%self.segment))
+            self.region = [self.rsdate + timedelta(minutes=x/12) for x in range(xrise,set,self.segment)]
 
-                            if (sid >= c or sid <= d) and (j >= rise and j <= set): # and dsum >= std:
-                                dcount += 1 
-                                if dcount > thresh:
-                                    
-                                    # print('{0}: {1:.2f}, {2:.2f}'.format(j,sid,std))
-                                    
-                                    rx.append(sid)                     
-                                    old = i 
-                                    hit = True                                
-                                    shit.append(True) 
-                                                                       
-                                else:
-                                    rx.append(numpy.nan)            
-                                    shit.append(False)      
+            rs = []
+            rs = self.generate_timestamp(self.rsdate, 5)    # timestamp           
+            tsid = list(self.sid1)[1]
 
+
+            for ns,k in param:
+                sstd = []   #standard dev
+                su = []     #rolling mean      
+                cu = []     #control upper
+                cl = []     #control lower
+                rx = []     #intersection
+
+                sf = []
+
+                TP = TN = FP = FN = 0
+
+                CON = []    # saves values
+                
+                xhit = []   # debug
+                shit = []   # saves hit points of size segment
+                tally = [0] * 4  # tallies TP,FP,FN,TN
+
+                cond = [[0,0,'C'],[0,0,'M'],[0,0,'X']]
+
+                old = 0
+                dcount = 0    
+
+                for i in range(17280):
+                    if i < ns:
+                        sstd.append(0)
+                        su.append(numpy.nan)
+                        cl.append(numpy.nan)
+                        cu.append(numpy.nan)
+                        rx.append(numpy.nan)      
+                        # sf.append(numpy.nan)                     
+                    else:
+                        # array at index
+                        sid = tsid[i]
+                        # signal array within window
+                        s = tsid[(i-ns):(i)]
+                        s = self.lowpassfilt2(s)
+
+                        # standard deviation
+                        std = numpy.std(s)                    
+                        sstd.append(std)
+                        # sma                            
+                        u = numpy.median(s)
+                        su.append(u)
+                        # limits
+                        c = u + k*std #+ y*u
+                        d = u - k*std #- y*u
+                        if d < 0.0:
+                            d = 0
+                        cu.append(c)
+                        cl.append(d)
+                                                
+                        j = i
+                        hit = False
+
+                        if (sid >= c or sid <= d) and (j >= rise and j <= set): # and dsum >= std:
+                            dcount += 1 
+                            if dcount > thresh:
+                                
+                                # print('{0}: {1:.2f}, {2:.2f}'.format(j,sid,std))
+                                
+                                rx.append(sid)                     
+                                old = i 
+                                hit = True                                
+                                shit.append(True) 
+                                                                    
                             else:
-                                rx.append(numpy.nan)
-                                shit.append(False)
+                                rx.append(numpy.nan)            
+                                shit.append(False)      
 
-                                # if i - old == 1 and i > 1:
-                                #     print('{0} \n'.format(dcount-thresh))
+                        else:
+                            rx.append(numpy.nan)
+                            shit.append(False)
 
-                                dcount = 0
+                            # if i - old == 1 and i > 1:
+                            #     print('{0} \n'.format(dcount-thresh))
 
-                            shit = shit[-self.segment:]
-                            xhit.append([hit,j])
-                            xhit = xhit[-self.segment:]
+                            dcount = 0
 
-                            if (j >= rise + self.segment and j <= set) and (j+1) % self.segment == 0:
-                                clist = isflare(j)
-                                if any(clist): # flare
-                                    fClass = self.getclass(clist,flareclass)
-                                    if any(shit): 
-                                        # Treat the FN detection at the last region as TN
-                                        if CON[-1] == 'y':
-                                            CON[-1] = 'g'
-                                            tally[3] += 1
-                                            tally[1] -= 1
-                                            self.tallyclass(cond,fClass,1,-1)
+                        shit = shit[-self.segment:]
+                        xhit.append([hit,j])
+                        xhit = xhit[-self.segment:]
 
-                                        # TP                                 
+                        if (j >= rise + self.segment and j <= set) and (j+1) % self.segment == 0:
+                            clist = isflare(j)
+                            if any(clist): # flare
+                                fClass = self.getclass(clist,flareclass)
+                                if any(shit): 
+                                    # Treat the FN detection at the last region as TN
+                                    if CON[-1] == 'y':
+                                        CON[-1] = 'g'
+                                        tally[3] += 1
+                                        tally[1] -= 1
+                                        self.tallyclass(cond,fClass,1,-1)
+
+                                    # TP                                 
+                                    CON.append('b')
+                                    tally[0] += 1
+                                    self.tallyclass(cond,fClass,0,1)
+
+                                else:
+                                    # Treat no detection before detection as TP
+                                    if len(CON) > 0 and CON[-1] == 'b':
                                         CON.append('b')
                                         tally[0] += 1
                                         self.tallyclass(cond,fClass,0,1)
 
                                     else:
-                                        # Treat no detection before detection as TP
-                                        if len(CON) > 0 and CON[-1] == 'b':
-                                            CON.append('b')
-                                            tally[0] += 1
-                                            self.tallyclass(cond,fClass,0,1)
+                                    # FN
+                                        CON.append('y')
+                                        tally[1] += 1
+                                        self.tallyclass(cond,fClass,1,1)
+                            else: # no flare
+                                if any(shit):
+                                    # Treat no detection after detection as TP
+                                    if len(CON) > 0 and CON[-1] == 'b':
+                                        CON.append('b')
+                                        tally[0] += 1
+                                        self.tallyclass(cond,fClass,0,1)
 
-                                        else:
-                                        # FN
-                                            CON.append('y')
-                                            tally[1] += 1
-                                            self.tallyclass(cond,fClass,1,1)
-                                else: # no flare
-                                    if any(shit):
-                                        # Treat no detection after detection as TP
-                                        if len(CON) > 0 and CON[-1] == 'b':
-                                            CON.append('b')
-                                            tally[0] += 1
-                                            self.tallyclass(cond,fClass,0,1)
-
-                                        else:
-                                            # FP
-                                            CON.append('r')
-                                            tally[2] += 1
-                                            # print('<<FP {0}>>'.format(j))
                                     else:
-                                        # TN
-                                        CON.append('g')
-                                        tally[3] += 1
-                                        
-                                shit = []
-                                xhit = []
-                    
-                    if verbose:
-                        TP = tally[0]
-                        FN = tally[1]
-                        FP = tally[2]
-                        TN = tally[3]
+                                        # FP
+                                        CON.append('r')
+                                        tally[2] += 1
+                                        # print('<<FP {0}>>'.format(j))
+                                else:
+                                    # TN
+                                    CON.append('g')
+                                    tally[3] += 1
+                                    
+                            shit = []
+                            xhit = []
+                
+                if verbose:
+                    TP = tally[0]
+                    FN = tally[1]
+                    FP = tally[2]
+                    TN = tally[3]
 
-                        print("<<w = {0}, k = {1} - {2:%Y-%m-%d}>>\n".format(ns,k,self.rsdate))
-                        print('SEGMENT TOTAL')            
+                    print("<<w = {0}, k = {1} - {2:%Y-%m-%d}>>\n".format(ns,k,self.rsdate))
+                    print('SEGMENT TOTAL')            
+                    print('TP = {0}, FN = {1}, FP = {2}, TN = {3}'.format(TP,FN,FP,TN))
+                    print('TPR = {0:.2%}, FPR = {1:.2%}'.format(self.TPR(TP,FN),self.FPR(FP,TN)))
+                    print('')
+
+                strcond = '{0:%Y-%m-%d}, {1}, {2}, '.format(self.rsdate,ns,k)
+
+                for f in cond:
+                    TP = f[0]
+                    FN = f[1]
+                    
+                    strcond += '{0}, {1}, {2:.5f}, '.format(TP, FN, self.TPR(TP,FN))
+
+                    if (TP != 0 or FN != 0) and verbose:
+                        print('{0} CLASS'.format(f[2]))
                         print('TP = {0}, FN = {1}, FP = {2}, TN = {3}'.format(TP,FN,FP,TN))
-                        print('TPR = {0:.2%}, FPR = {1:.2%}'.format(self.TPR(TP,FN),self.FPR(FP,TN)))
-                        print('')
+                        print('TPR = {0:.2%}, FPR = {1:.2%}\n'.format(self.TPR(TP,FN),self.FPR(FP,TN)))
 
-                    strcond = '{0:%Y-%m-%d}, {1}, {2}, '.format(self.rsdate,ns,k)
-
-                    for f in cond:
-                        TP = f[0]
-                        FN = f[1]
-                        
-                        strcond += '{0}, {1}, {2:.5f}, '.format(TP, FN, self.TPR(TP,FN))
-
-                        if (TP != 0 or FN != 0) and verbose:
-                            print('{0} CLASS'.format(f[2]))
-                            print('TP = {0}, FN = {1}, FP = {2}, TN = {3}'.format(TP,FN,FP,TN))
-                            print('TPR = {0:.2%}, FPR = {1:.2%}\n'.format(self.TPR(TP,FN),self.FPR(FP,TN)))
-
-                    if verbose:
-                        s = tsid
-                        pname = self.dname1[self.combo1.GetSelection()]
+                if verbose:
+                    pname = self.dname1[self.combo1.GetSelection()]
+                
+                    app = wx.App(False)
+                    fr = wx.Frame(None, title='w: {0}, k @ {1} - {2}'.format(ns, k, pname), size=(800, 600))
                     
-                        app = wx.App(False)
-                        fr = wx.Frame(None, title='w: {0}, k @ {1} - {2}'.format(ns, k, pname), size=(800, 600))
-                        
-                        panel = SepViewer(fr)
-                        panel.draw5(rs, s, su, sstd, cu, cl, rx, self.rsdate, self.settwishade(), self.setflaremarks(), self.region, CON)
-                        
-                        fr.Maximize(True)
-                        fr.Show()
-                        app.MainLoop()
-                    else:
-                        TP = tally[0]
-                        FN = tally[1]
-                        strcond += '{0}, {1}, {2}, {3}, {4:.5f}, {5:.5f}'.format(TP,FN,FP,TN,self.TPR(TP,FN),self.FPR(FP,TN))
-                        print(strcond)
+                    panel = SepViewer(fr)
+                    panel.draw5(rs, tsid, su, sstd, cu, cl, rx, self.rsdate, self.settwishade(), self.setflaremarks(), self.region, CON)
+                    
+                    fr.Maximize(True)
+                    fr.Show()
+                    app.MainLoop()
+                else:
+                    TP = tally[0]
+                    FN = tally[1]
+                    FP = tally[2]
+                    TN = tally[3]
 
-            dlg.Destroy()
+                    strcond += '{0}, {1}, {2}, {3}, {4:.5f}, {5:.5f}'.format(TP,FN,FP,TN,self.TPR(TP,FN),self.FPR(FP,TN))
+                    print(strcond)
+
+    
 
     def pick8(self, event):
         """ Plot GOES """
@@ -1118,6 +1136,17 @@ class SidViewer(wx.Panel):
 
     def loadsid1(self, selcombo):
         fstr = self.dpath1[selcombo]
+        self.sid1 = []        
+        try:
+            with open(fstr, "rt") as fin:
+                lines = fin.readlines()
+        except IOError:
+                pass
+        
+        self.sid1.append(self.generate_timestamp(self.StrtoDate(lines[9]), 5))
+        self.sid1.append(numpy.loadtxt(lines, dtype=float, comments='#', delimiter=",", usecols=(1, )).transpose())
+
+    def loadsid1p(self, fstr):
         self.sid1 = []        
         try:
             with open(fstr, "rt") as fin:
