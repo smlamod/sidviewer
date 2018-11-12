@@ -1094,8 +1094,8 @@ class SidViewer(wx.Panel):
                     infile.write(strcond+'\n')
                     print(strcond)
         
-            if not verbose:
-                infile.close()
+        if not verbose:
+            infile.close()
 
     
 
