@@ -9,9 +9,9 @@ matplotlib.use('WXAgg')
 import matplotlib.dates as mdates
 import matplotlib.font_manager as font_m
 import numpy
-import scipy.signal as sc
+# import scipy.signal as sc
 import wx
-import xlrd as xl
+# import xlrd as xl
 from matplotlib.backends.backend_wx import NavigationToolbar2Wx
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -205,6 +205,8 @@ class SepViewer(wx.Panel):
         """ RCL PLOT """         
         #2160  15120
         rs = numpy.asarray(rs)      # time
+        su = numpy.asarray(su)
+        su = su[1:]
         sstd = numpy.asarray(sstd)  # std
         cu = numpy.asarray(cu)      # upper limit
         cl = numpy.asarray(cl)      # lower limit
@@ -325,7 +327,7 @@ class SidViewer(wx.Panel):
         wx.Panel.__init__(self, parent)
         #self._sid_path = "C:\\Users\\yenan\\Dropbox\\Sidbackup\\TEMP"
         self._sid_path = "C:\\Users\\yenan\\Dropbox\\Sidbackup\\TEST\\AGO-GQD"
-        self._rfl_path = "C:\\Users\\yenan\\OneDrive - Mapua Institute of Technology\\COE200L - THESIS\\FINAL PAPER\\RainFall_2018.xlsx"
+        #self._rfl_path = "C:\\Users\\yenan\\OneDrive - Mapua Institute of Technology\\COE200L - THESIS\\FINAL PAPER\\RainFall_2018.xlsx"
         #self._rfl_path = "C:\\Users\\yenan\\OneDrive - Mapua Institute of Technology\\COE200L - THESIS\\FINAL PAPER\\RainFall_Port Area Synop_2018.xlsx"
         self.dpath1 = []
         self.dpath2 = []
@@ -451,21 +453,21 @@ class SidViewer(wx.Panel):
         self.dname1 = sfname        
         self.combo1.Selection = 0
 
-        wb = xl.open_workbook(self._rfl_path)
-        for sh in range(3):            
-            #inData = [[wb.sheet_by_index(sh).cell_value(r, c) for r in range(2, wb.sheet_by_index(sh).nrows)] for c in range(1, wb.sheet_by_index(sh).ncols)]
-            inCol = []
-            for c in range(1, wb.sheet_by_index(sh).ncols):
-                inRow = []
-                for r in range(2, wb.sheet_by_index(sh).nrows):
-                    temp = wb.sheet_by_index(sh).cell_value(r, c)
-                    if temp == u'':
-                        inRow.append(numpy.nan)
-                    else:
-                        inRow.append(temp)
-                inCol.append(inRow)
+        # wb = xl.open_workbook(self._rfl_path)
+        # for sh in range(3):            
+        #     #inData = [[wb.sheet_by_index(sh).cell_value(r, c) for r in range(2, wb.sheet_by_index(sh).nrows)] for c in range(1, wb.sheet_by_index(sh).ncols)]
+        #     inCol = []
+        #     for c in range(1, wb.sheet_by_index(sh).ncols):
+        #         inRow = []
+        #         for r in range(2, wb.sheet_by_index(sh).nrows):
+        #             temp = wb.sheet_by_index(sh).cell_value(r, c)
+        #             if temp == u'':
+        #                 inRow.append(numpy.nan)
+        #             else:
+        #                 inRow.append(temp)
+        #         inCol.append(inRow)
 
-            self.rfal.append(numpy.asarray(inCol))
+        #     self.rfal.append(numpy.asarray(inCol))
 
     def filter(self, tsid, w=None):
         """ Filter the Data """
@@ -542,9 +544,10 @@ class SidViewer(wx.Panel):
     def pick3(self, event):
         """ Simple Plot """
         if self.sid1:
-
+            
+            sid1 = self.sid1
             #sid1 = self.filter(list(self.sid1))
-            sid1 = (self.sid1[0], numpy.asarray(self.lowpassfilt2(list(self.sid1[1]))))
+            sid2 = (self.sid1[0], numpy.asarray(self.lowpassfilt2(list(self.sid1[1]))))
 
             app = wx.App(False)
             fr = wx.Frame(None, title='Simple Plot', size=(800, 600))
@@ -580,7 +583,7 @@ class SidViewer(wx.Panel):
             xrfal = self.generate_timestamp(self.rsdate, 600) 
 
             sid1 = self.filter(list(self.sid1))
-
+            
             app = wx.App(False)
             fr = wx.Frame(None, title='Rainfall Plot', size=(800, 600))
             panel = SepViewer(fr)
@@ -784,8 +787,7 @@ class SidViewer(wx.Panel):
             else:
                 cond[0][1] += tally
 
-    def lowpassfilt2(self,sig):
-        alpha = 0.8
+    def lowpassfilt2(self, sig, alpha=0.8):
         out = [None]*len(sig)
         out[0] = sig[0]*alpha
 
@@ -845,22 +847,26 @@ class SidViewer(wx.Panel):
                     k = float(cin[1])
                     
                     if len(cin) > 2:
-                        thresh = int(cin[2])
+                        alp = float(cin[2])
                     else:
-                        thresh = 1
+                        alp = 0.8
 
-                    param = [[ns,k]]
+                    thresh = 1
+                    param = [[ns,k,alp]]
                     verbose = True
                 else:
                     aNs = range(60,361,12)                      # 5 min to 30 min 1 min increment
                     aK = [float(x)/10 for x in range(30,41,5)]  # 3.0 to 4.0 0.1 increment
+                    aAlp = [0.8]
                     param = []
                     thresh = 1
 
                     for i in aNs:
                         for j in aK:
-                            param.append([i,j])
+                            for k in aAlp:
+                                param.append([i,j,k])
                     verbose = False
+                    infile = open("result.csv","w")
 
             path = [self.dpath1[self.combo1.GetSelection()]]
             dlg.Destroy()
@@ -869,15 +875,16 @@ class SidViewer(wx.Panel):
 
             aNs = range(60,361,12)                      # 5 min to 30 min 1 min increment
             aK = [float(x)/10 for x in range(30,41,5)]  # 3.0 to 4.0 0.1 increment
+            aAlp = [float(x)/10 for x in range(11)]
             param = []
             thresh = 1
 
             for i in aNs:
                 for j in aK:
-                    param.append([i,j])
+                    for k in aAlp:
+                        param.append([i,j,k])
             verbose = False
-
-            path = self.dpath1
+            infile = open("result.csv","w")
 
 
         for fin in path:
@@ -895,8 +902,8 @@ class SidViewer(wx.Panel):
             else:
                 isflare = lambda x : [False]
                 flareclass = [None]
-                rise = 0 
-                set = 17280
+                rise = 360
+                set = 17280 - 360
 
             xrise = rise + (self.segment - (rise%self.segment))
             self.region = [self.rsdate + timedelta(minutes=x/12) for x in range(xrise,set,self.segment)]
@@ -906,7 +913,7 @@ class SidViewer(wx.Panel):
             tsid = list(self.sid1)[1]
 
 
-            for ns,k in param:
+            for ns,k,alpha in param:
                 sstd = []   #standard dev
                 su = []     #rolling mean      
                 cu = []     #control upper
@@ -941,11 +948,12 @@ class SidViewer(wx.Panel):
                         sid = tsid[i]
                         # signal array within window
                         s = tsid[(i-ns):(i)]
-                        s = self.lowpassfilt2(s)
+                        s = self.lowpassfilt2(s,alpha)
 
                         # standard deviation
                         std = numpy.std(s)                    
                         sstd.append(std)
+
                         # sma                            
                         u = numpy.median(s)
                         su.append(u)
@@ -962,7 +970,7 @@ class SidViewer(wx.Panel):
 
                         if (sid >= c or sid <= d) and (j >= rise and j <= set): # and dsum >= std:
                             dcount += 1 
-                            if dcount > thresh:
+                            if dcount >= thresh:
                                 
                                 # print('{0}: {1:.2f}, {2:.2f}'.format(j,sid,std))
                                 
@@ -1050,7 +1058,7 @@ class SidViewer(wx.Panel):
                     print('TPR = {0:.2%}, FPR = {1:.2%}'.format(self.TPR(TP,FN),self.FPR(FP,TN)))
                     print('')
 
-                strcond = '{0:%Y-%m-%d}, {1}, {2}, '.format(self.rsdate,ns,k)
+                strcond = '{0:%Y-%m-%d}, {1}, {2}, {3}, '.format(self.rsdate,ns,k,alpha)
 
                 for f in cond:
                     TP = f[0]
@@ -1082,7 +1090,11 @@ class SidViewer(wx.Panel):
                     TN = tally[3]
 
                     strcond += '{0}, {1}, {2}, {3}, {4:.5f}, {5:.5f}'.format(TP,FN,FP,TN,self.TPR(TP,FN),self.FPR(FP,TN))
+                    infile.write(strcond+'\n')
                     print(strcond)
+        
+            if not verbose:
+                infile.close()
 
     
 
