@@ -357,7 +357,7 @@ class SidViewer(wx.Panel):
         
         self.timestamp_format = "%Y-%m-%d %H:%M:%S"
         #self.temp = '252,3.5'
-        self.temp = '364,3.0,1,1'
+        self.temp = '336,3.5,1,1'
 
         beg = (0, 0)
         edn = (23, 59)
@@ -909,7 +909,7 @@ class SidViewer(wx.Panel):
 
             aNs = range(60,361,12)                      # 5 min to 30 min 1 min increment
             aK = [float(x)/10 for x in range(30,41,5)]  # 3.0 to 4.0 0.1 increment
-            aAlp = [float(x)/10 for x in range(1,11)]
+            aAlp = [float(x)/10 for x in range(6,12)]
             param = []
             thresh = 1
 
@@ -949,6 +949,11 @@ class SidViewer(wx.Panel):
             #tsid = self.lowpassfilt2(tsid,0.025)
 
             for ns,k,alpha in param:
+
+                if alpha == 1.1:
+                    alpha = 1
+                    thresh = 8
+
                 sstd = []   #standard dev
                 su = []     #rolling mean      
                 cu = []     #control upper
@@ -990,7 +995,7 @@ class SidViewer(wx.Panel):
                         sstd.append(std)
 
                         # sma                            
-                        u = numpy.median(s)
+                        u = numpy.mean(s)
                         su.append(u)
                         # limits
                         c = u + k*std #+ y*u
