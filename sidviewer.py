@@ -950,9 +950,12 @@ class SidViewer(wx.Panel):
 
             for ns,k,alpha in param:
 
+                stralp = alpha
+
                 if alpha == 1.1:
                     alpha = 1
                     thresh = 8
+                    stralp = 8
 
                 sstd = []   #standard dev
                 su = []     #rolling mean      
@@ -1098,7 +1101,7 @@ class SidViewer(wx.Panel):
                     print('TPR = {0:.2%}, FPR = {1:.2%}'.format(self.TPR(TP,FN),self.FPR(FP,TN)))
                     print('')
 
-                strcond = '{0:%Y-%m-%d}, {1}, {2}, {3}, '.format(self.rsdate,ns,k,alpha)
+                strcond = '{0:%Y-%m-%d}, {1}, {2}, {3}, '.format(self.rsdate,ns,k,stralp)
 
                 for f in cond:
                     TP = f[0]
