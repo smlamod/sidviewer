@@ -190,8 +190,8 @@ class SepViewer(wx.Panel):
 
             for i in range(len(begflare)):
                 bboxparams=dict(boxstyle="round4,pad=0.2",fc='black',lw=0)
-                axes.annotate(strflare[i], (begflare[i], 0), color='black', size=18)
-                #axes.annotate(strflare[i], (begflare[i], 0.925e5*(i%2)+2e3), color='white', size=18, bbox=bboxparams)
+                #axes.annotate(strflare[i], (begflare[i], 0), color='black', size=18)
+                axes.annotate(strflare[i], (begflare[i], 0.925e5*(i%2)+2e3), color='white', size=18, bbox=bboxparams)
 
         # indices
         st = region[:-1]
@@ -328,9 +328,20 @@ class SidViewer(wx.Panel):
     def __init__(self, parent):
         wx.Panel.__init__(self, parent)
         #self._sid_path = "C:\\Users\\yenan\\Dropbox\\Sidbackup\\TEMP"
-        self._sid_path = "C:\\Users\\yenan\\Dropbox\\Sidbackup\\TEST\\AGO-GQD"
+        #self._sid_path = "C:\\Users\\yenan\\Dropbox\\Sidbackup\\TEST\\AGO-GQD"
         #self._rfl_path = "C:\\Users\\yenan\\OneDrive - Mapua Institute of Technology\\COE200L - THESIS\\FINAL PAPER\\RainFall_2018.xlsx"
         #self._rfl_path = "C:\\Users\\yenan\\OneDrive - Mapua Institute of Technology\\COE200L - THESIS\\FINAL PAPER\\RainFall_Port Area Synop_2018.xlsx"
+        
+        try:
+            fin = open("path.txt", 'r')
+            self._sid_path = fin.readline()
+        except FileNotFoundError:
+            print('path.txt not found.. defaulting')
+            self._sid_path = "C:\\Users\\yenan\\Dropbox\\Sidbackup\\TEST\\AGO-GQD"
+        finally:
+            fin.close()
+        
+        
         self.dpath1 = []
         self.dpath2 = []
 
@@ -345,7 +356,8 @@ class SidViewer(wx.Panel):
         self.tstamp = []
         
         self.timestamp_format = "%Y-%m-%d %H:%M:%S"
-        self.temp = '252,3.5'
+        #self.temp = '252,3.5'
+        self.temp = '364,3.0,1,1'
 
         beg = (0, 0)
         edn = (23, 59)
@@ -804,14 +816,18 @@ class SidViewer(wx.Panel):
             else:
                 cond[0][1] += tally
 
-    def lowpassfilt2(self, sig, alpha=0.8):
-        out = [None]*len(sig)
-        out[0] = sig[0]*alpha
+    def lowpassfilt2(self, sig, alpha=1):
 
-        for i in range(1,len(sig)):
-            out[i] = out[i-1] + alpha * (sig[i] - out[i-1])
+        if alpha < 1 and alpha > 0:
+            out = [None]*len(sig)
+            out[0] = sig[0]*alpha
 
-        return out 
+            for i in range(1,len(sig)):
+                out[i] = out[i-1] + alpha * (sig[i] - out[i-1])
+
+            return out
+        else:
+            return sig 
 
     @classmethod
     def filter_buffer(cls, raw_buffer, data_interval, bema_wing = 6, gmt_offset = 0):
@@ -865,10 +881,11 @@ class SidViewer(wx.Panel):
                     
                     if len(cin) > 2:
                         alp = float(cin[2])
+                        thresh = int(cin[3])
                     else:
-                        alp = 0.8
+                        alp = 1
+                        thresh = 1
 
-                    thresh = 1
                     param = [[ns,k,alp]]
                     verbose = True
                 else:
@@ -902,7 +919,7 @@ class SidViewer(wx.Panel):
                         param.append([i,j,k])
             verbose = False
             infile = open("result.csv","w")
-            path = self.dpath1[6:]
+            path = self.dpath1
 
 
         for fin in path:
@@ -1093,7 +1110,7 @@ class SidViewer(wx.Panel):
                     pname = self.dname1[self.combo1.GetSelection()]
                 
                     app = wx.App(False)
-                    fr = wx.Frame(None, title='w: {0}, k @ {1} - {2}'.format(ns, k, pname), size=(800, 600))
+                    fr = wx.Frame(None, title='w: {0}, k @ {1}, a: {3}, th: {4} - {2}'.format(ns, k, pname, alpha, thresh), size=(800, 600))
                     
                     panel = SepViewer(fr)
                     panel.draw5(rs, tsid, su, sstd, cu, cl, rx, self.rsdate, self.settwishade(), self.setflaremarks(), self.region, CON)
